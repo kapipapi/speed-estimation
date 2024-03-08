@@ -109,6 +109,33 @@ with sv.VideoSink("vehicles_tracked.mp4", video_info) as sink:
             scene=annotated_frame, detections=detections, labels=speed_labels
         )
 
+        # detect number plates
+        for detection in detections:
+            x1,y1,x2,y2 = np.array(detection[0]).astype(np.int32).tolist()
+            roi = frame.copy()[y1:y2, x1:x2]
+
+            roi_gray = cv2.cvtColor(roi, cv2.COLOR_BGR2GRAY)
+
+            res, mask = cv2.threshold(roi_gray, 100, 255, cv2.THRESH_BINARY)
+
+            def mask_contours(mask, function):
+                mask = mask.copy()
+                contours, _ = cv2.findContours(mask, cv2.RETR_EXTERNAL, cv2.CHAIN_APPROX_SIMPLE)
+                contours_to_remove = filter(lambda c: function(c), contours)
+                contours_to_remove = list(contours_to_remove)
+                return cv2.drawContours(mask, contours_to_remove, -1, (0, 0, 0), -1)
+
+            mask = mask_contours(mask, lambda c: cv2.contourArea(c) < 500)
+            mask = mask_contours(mask, lambda c: cv2.contourArea(c) > 2000)
+            contours, _ = cv2.findContours(mask, cv2.RETR_EXTERNAL, cv2.CHAIN_APPROX_SIMPLE)
+
+
+            for contour in contours:
+                x,y,w,h = cv2.boundingRect(contour)
+                aspect_ratio = w / h
+                if 2.5 < aspect_ratio < 4.5:
+                    cv2.rectangle(annotated_frame, (x1+x, y1+y), (x1+x+w, y1+y+h), (0, 255, 0), 2)
+
         cv2.imshow("frame", annotated_frame)    
 
         plt.legend()
